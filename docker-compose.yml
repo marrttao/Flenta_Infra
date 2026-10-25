@@ -1,0 +1,43 @@
+# Локальний Postgres потрібен для тестів/офлайн-розробки і тд, піднімається тільки з профілем local: docker compose --profile local up -d db-local
+# Міграції виконуються автоматично при першому старті. Щоб застосувати заново: docker compose --profile local down -v
+
+services:
+  db-local:
+    image: postgres:16
+    profiles: ["local"]
+    environment:
+      POSTGRES_USER: ${LOCAL_DB_USER:-flenta}
+      POSTGRES_PASSWORD: ${LOCAL_DB_PASSWORD:-flenta_dev}
+      POSTGRES_DB: ${LOCAL_DB_NAME:-flenta}
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata_local:/var/lib/postgresql/data
+      - ./db/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${LOCAL_DB_USER:-flenta} -d ${LOCAL_DB_NAME:-flenta}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+
+  # коли буде докер файл
+
+
+  # backend:
+  #   build: ../Flenta_Backend
+  #   ports:
+  #     - "5000:8080"
+  #   environment:
+  #     ConnectionStrings__Default: ${DB_CONNECTION_STRING}
+  #     ASPNETCORE_ENVIRONMENT: Development
+  #
+  # frontend:
+  #   build: ../Flenta_Desktop
+  #   ports:
+  #     - "3000:80"
+  #   depends_on:
+  #     - backend
+
+volumes:
+  pgdata_local:
