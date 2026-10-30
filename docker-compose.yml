@@ -1,5 +1,12 @@
-# Локальний Postgres потрібен для тестів/офлайн-розробки і тд, піднімається тільки з профілем local: docker compose --profile local up -d db-local
-# Міграції виконуються автоматично при першому старті. Щоб застосувати заново: docker compose --profile local down -v
+# База основна живе в Supabase. Локальні сервіси для тестів/CI/демо піднімаються з профілем "local":
+#   docker compose --profile local up -d
+# Що запуститься:
+#   db-local  локальний Postgres (порт 5433), міграції з db/migrations виконуються автоматично при першому старті
+#   db-seed   одноразово заливає тестові дані з db/seed (ідемпотентно), потім завершується
+#   adminer   веб-інтерфейс до бази: http://localhost:8080
+#             System: PostgreSQL, Server: db-local, Username/Password/Database з .env (за замовчуванням flenta / flenta_dev / flenta)
+
+# Скинути все до чистого стану: docker compose --profile local down -v
 
 services:
   db-local:
@@ -15,13 +22,38 @@ services:
       - pgdata_local:/var/lib/postgresql/data
       - ./db/migrations:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${LOCAL_DB_USER:-flenta} -d ${LOCAL_DB_NAME:-flenta}"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U ${LOCAL_DB_USER:-flenta} -d ${LOCAL_DB_NAME:-flenta}"]
       interval: 5s
       timeout: 5s
       retries: 10
 
+  db-seed:
+    image: postgres:16
+    profiles: ["local"]
+    depends_on:
+      db-local:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${LOCAL_DB_PASSWORD:-flenta_dev}
+    volumes:
+      - ./db/seed:/seed:ro
+    command: ["psql", "-h", "db-local", "-U", "${LOCAL_DB_USER:-flenta}", "-d", "${LOCAL_DB_NAME:-flenta}", "-v", "ON_ERROR_STOP=1", "-f", "/seed/001_seed_dev.sql"]
+    restart: "no"
 
-  # коли буде докер файл
+  adminer:
+    image: adminer:latest
+    profiles: ["local"]
+    depends_on:
+      - db-local
+    environment:
+      ADMINER_DEFAULT_SERVER: db-local
+    ports:
+      - "8080:8080"
+
+
+
+  # Dockerfile
+
 
 
   # backend:
