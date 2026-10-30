@@ -2,11 +2,11 @@
 #   docker compose --profile local up -d
 # Що запуститься:
 #   db-local  локальний Postgres (порт 5433), міграції з db/migrations виконуються автоматично при першому старті
-#   db-seed   одноразово заливає тестові дані з db/seed (ідемпотентно), потім завершується
+#   db-seed   одноразово заливає тестові дані з db/seed, потім завершується
 #   adminer   веб-інтерфейс до бази: http://localhost:8080
 #             System: PostgreSQL, Server: db-local, Username/Password/Database з .env (за замовчуванням flenta / flenta_dev / flenta)
-
-# Скинути все до чистого стану: docker compose --profile local down -v
+# Разом з веб-застосунком: docker compose --profile local --profile app up -d --build  (http://localhost:3000)
+# Скинути все до чистого стану: docker compose --profile local --profile app down -v
 
 services:
   db-local:
@@ -50,10 +50,7 @@ services:
     ports:
       - "8080:8080"
 
-
-
-  # Dockerfile
-
+  # коли з'являться Dockerfile:
 
 
   # backend:
@@ -64,12 +61,23 @@ services:
   #     ConnectionStrings__Default: ${DB_CONNECTION_STRING}
   #     ASPNETCORE_ENVIRONMENT: Development
   #
-  # frontend:
-  #   build: ../Flenta_Desktop
-  #   ports:
-  #     - "3000:80"
-  #   depends_on:
-  #     - backend
+  # Веб-застосунок (Flenta_Desktop)
+  # Запуск: docker compose --profile local --profile app up -d --build
+  
+  frontend:
+    build:
+      context: ../Flenta_Desktop
+      args:
+        VITE_CURRENCY_SPREAD: ${VITE_CURRENCY_SPREAD:-0.005}
+    profiles: ["app"]
+    ports:
+      - "3000:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ > /dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # depends_on: [backend]   # коли з'явиться backend
 
 volumes:
   pgdata_local:
