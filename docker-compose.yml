@@ -1,5 +1,10 @@
 # База основна живе в Supabase. Локальні сервіси для тестів/CI/демо піднімаються з профілем "local":
 #   docker compose --profile local up -d
+# Що запуститься:
+#   db-local  локальний Postgres (порт 5433), міграції з db/migrations виконуються автоматично при першому старті
+#   db-seed   одноразово заливає тестові дані з db/seed (ідемпотентно), потім завершується
+#   adminer   веб-інтерфейс до бази: http://localhost:8080
+#             System: PostgreSQL, Server: db-local, Username/Password/Database з .env (за замовчуванням flenta / flenta_dev / flenta)
 # Разом з веб-застосунком: docker compose --profile local --profile app up -d --build  (сайт: http://localhost:3000)
 # Скинути все до чистого стану: docker compose --profile local --profile app down -v
 
@@ -17,6 +22,7 @@ services:
       - pgdata_local:/var/lib/postgresql/data
       - ./db/migrations:/docker-entrypoint-initdb.d:ro
     healthcheck:
+
       test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U ${LOCAL_DB_USER:-flenta} -d ${LOCAL_DB_NAME:-flenta}"]
       interval: 5s
       timeout: 5s
@@ -45,7 +51,31 @@ services:
     ports:
       - "8080:8080"
 
-  # Веб-застосунок (Flenta_Desktop). Репозиторій має лежати поруч: ../Flenta_Desktop
+  # Налаштування передаються змінними Розділ__Ключ (див. appsettings.json). Секрети беруться з .env
+  backend:
+    build:
+      context: ../Flenta_Backend
+    profiles: ["app"]
+    ports:
+      - "5000:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      Cors__AllowedOrigins__0: http://localhost:3000
+      Cors__AllowedOrigins__1: http://127.0.0.1:3000
+      Banking__Enabled: ${BANKING_ENABLED:-false}
+      Banking__ConnectionString: ${BANKING_CONNECTION_STRING:-}
+      Banking__CardEncryptionKey: ${BANKING_CARD_ENCRYPTION_KEY:-}
+      Didit__Enabled: ${DIDIT_ENABLED:-false}
+      Didit__ApiKey: ${DIDIT_API_KEY:-}
+      Didit__WebhookSecret: ${DIDIT_WEBHOOK_SECRET:-}
+      Didit__WorkflowId: ${DIDIT_WORKFLOW_ID:-}
+      Supabase__Enabled: ${SUPABASE_ENABLED:-false}
+      Supabase__Url: ${SUPABASE_URL:-}
+      Supabase__PublishableKey: ${SUPABASE_PUBLISHABLE_KEY:-}
+      Supabase__FrontendUrl: http://localhost:3000
+
+
+  # Запуск: docker compose --profile local --profile app up -d --build
   frontend:
     build:
       context: ../Flenta_Desktop
