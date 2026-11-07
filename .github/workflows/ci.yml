@@ -14,26 +14,28 @@ permissions:
   contents: read
 
 jobs:
-  build-test:
-    name: Lint, test, build
+  db-migrations:
+    name: Compose config and DB migrations
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
+      - name: Validate docker-compose.yml
+        run: docker compose --profile local config -q
 
-      - run: npm ci
-      - run: npm run lint
-      - run: npm test
-      - run: npm run build
+      - name: Start local Postgres (applies db/migrations)
+        run: docker compose --profile local up -d --wait db-local
 
-  docker:
-    name: Docker image builds
-    runs-on: ubuntu-latest
-    needs: build-test
-    steps:
-      - uses: actions/checkout@v4
-      - run: docker build -t flenta-desktop .
+      - name: Load seed data
+        run: docker compose --profile local run --rm db-seed
+
+      - name: List tables
+        run: docker compose --profile local exec -T db-local psql -U flenta -d flenta -c "\dt"
+
+      - name: Logs on failure
+        if: failure()
+        run: docker compose --profile local logs db-local
+
+      - name: Clean up
+        if: always()
+        run: docker compose --profile local down -v
