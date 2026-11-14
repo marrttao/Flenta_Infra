@@ -29,6 +29,7 @@ services:
       timeout: 5s
       retries: 10
 
+
   db-seed:
     image: postgres:16
     profiles: ["local"]
@@ -51,11 +52,25 @@ services:
       ADMINER_DEFAULT_SERVER: db-local
     ports:
       - "8080:8080"
-
+  # Запускати з обома профілями: --profile local --profile app
+  migrate:
+    build:
+      context: ../Flenta_Backend
+      target: migrate
+    profiles: ["app"]
+    depends_on:
+      db-local:
+        condition: service_healthy
+    environment:
+      Banking__ConnectionString: ${BANKING_CONNECTION_STRING:-Host=db-local;Port=5432;Database=flenta;Username=flenta;Password=flenta_dev}
+    restart: "no"
   backend:
     build:
       context: ../Flenta_Backend
     profiles: ["app"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
     ports:
       - "5080:8080"
     environment:
