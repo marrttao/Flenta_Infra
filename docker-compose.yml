@@ -1,11 +1,13 @@
 # База основна живе в Supabase. Локальні сервіси для тестів/CI/демо піднімаються з профілем "local":
 #   docker compose --profile local up -d
-# Що запуститься:
+
+# запуститься:
 #   db-local  локальний Postgres (порт 5433), міграції з db/migrations виконуються автоматично при першому старті
-#   db-seed   одноразово заливає тестові дані з db/seed (ідемпотентно), потім завершується
+#   db-seed   одноразово заливає тестові дані з db/seed, потім завершується
 #   adminer   веб-інтерфейс до бази: http://localhost:8080
 #             System: PostgreSQL, Server: db-local, Username/Password/Database з .env (за замовчуванням flenta / flenta_dev / flenta)
 # Разом з веб-застосунком: docker compose --profile local --profile app up -d --build  (сайт: http://localhost:3000)
+
 # Скинути все до чистого стану: docker compose --profile local --profile app down -v
 
 services:
@@ -22,7 +24,6 @@ services:
       - pgdata_local:/var/lib/postgresql/data
       - ./db/migrations:/docker-entrypoint-initdb.d:ro
     healthcheck:
-
       test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U ${LOCAL_DB_USER:-flenta} -d ${LOCAL_DB_NAME:-flenta}"]
       interval: 5s
       timeout: 5s
@@ -51,13 +52,12 @@ services:
     ports:
       - "8080:8080"
 
-  # Налаштування передаються змінними Розділ__Ключ (див. appsettings.json). Секрети беруться з .env
   backend:
     build:
       context: ../Flenta_Backend
     profiles: ["app"]
     ports:
-      - "5000:8080"
+      - "5080:8080"
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       Cors__AllowedOrigins__0: http://localhost:3000
@@ -74,13 +74,13 @@ services:
       Supabase__PublishableKey: ${SUPABASE_PUBLISHABLE_KEY:-}
       Supabase__FrontendUrl: http://localhost:3000
 
-
   # Запуск: docker compose --profile local --profile app up -d --build
   frontend:
     build:
       context: ../Flenta_Desktop
       args:
         VITE_CURRENCY_SPREAD: ${VITE_CURRENCY_SPREAD:-0.005}
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:5080}
     profiles: ["app"]
     ports:
       - "3000:80"
