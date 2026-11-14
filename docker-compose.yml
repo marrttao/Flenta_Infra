@@ -1,8 +1,9 @@
 # База основна живе в Supabase. Локальні сервіси для тестів/CI/демо піднімаються з профілем "local":
 #   docker compose --profile local up -d
-# Що запуститься:
+
+# запуститься:
 #   db-local  локальний Postgres (порт 5433), міграції з db/migrations виконуються автоматично при першому старті
-#   db-seed   одноразово заливає тестові дані з db/seed (ідемпотентно), потім завершується
+#   db-seed   одноразово заливає тестові дані з db/seed, потім завершується
 #   adminer   веб-інтерфейс до бази: http://localhost:8080
 #             System: PostgreSQL, Server: db-local, Username/Password/Database з .env (за замовчуванням flenta / flenta_dev / flenta)
 # Разом з веб-застосунком: docker compose --profile local --profile app up -d --build  (сайт: http://localhost:3000)
@@ -51,7 +52,6 @@ services:
       ADMINER_DEFAULT_SERVER: db-local
     ports:
       - "8080:8080"
-
   # Запускати з обома профілями: --profile local --profile app
   migrate:
     build:
@@ -64,7 +64,6 @@ services:
     environment:
       Banking__ConnectionString: ${BANKING_CONNECTION_STRING:-Host=db-local;Port=5432;Database=flenta;Username=flenta;Password=flenta_dev}
     restart: "no"
-
   backend:
     build:
       context: ../Flenta_Backend
