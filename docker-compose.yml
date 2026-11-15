@@ -1,9 +1,8 @@
 # База основна живе в Supabase. Локальні сервіси для тестів/CI/демо піднімаються з профілем "local":
 #   docker compose --profile local up -d
-
-# запуститься:
+# Що запуститься:
 #   db-local  локальний Postgres (порт 5433), міграції з db/migrations виконуються автоматично при першому старті
-#   db-seed   одноразово заливає тестові дані з db/seed, потім завершується
+#   db-seed   одноразово заливає тестові дані з db/seed (ідемпотентно), потім завершується
 #   adminer   веб-інтерфейс до бази: http://localhost:8080
 #             System: PostgreSQL, Server: db-local, Username/Password/Database з .env (за замовчуванням flenta / flenta_dev / flenta)
 # Разом з веб-застосунком: docker compose --profile local --profile app up -d --build  (сайт: http://localhost:3000)
@@ -13,7 +12,7 @@
 services:
   db-local:
     image: postgres:16
-    profiles: ["local"]
+    profiles: ["local", "test"]
     environment:
       POSTGRES_USER: ${LOCAL_DB_USER:-flenta}
       POSTGRES_PASSWORD: ${LOCAL_DB_PASSWORD:-flenta_dev}
@@ -28,7 +27,6 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
-
 
   db-seed:
     image: postgres:16
@@ -52,7 +50,8 @@ services:
       ADMINER_DEFAULT_SERVER: db-local
     ports:
       - "8080:8080"
-      
+
+
   # Запускати з обома профілями: --profile local --profile app
   migrate:
     build:
@@ -65,6 +64,27 @@ services:
     environment:
       Banking__ConnectionString: ${BANKING_CONNECTION_STRING:-Host=db-local;Port=5432;Database=flenta;Username=flenta;Password=flenta_dev}
     restart: "no"
+
+  # Тести backend однією командою:  docker compose --profile test run --rm tests
+
+  # (перевірка docker compose --profile test config --services )
+
+
+  # Інший набір тестів:  docker compose --profile test run --rm tests dotnet test --filter "FullyQualifiedName~Iban"
+  tests:
+    image: mcr.microsoft.com/dotnet/sdk:10.0
+    profiles: ["test"]
+    working_dir: /src
+    volumes:
+      - ../Flenta_Backend:/src
+      - nuget_cache:/root/.nuget/packages
+    environment:
+      BANKING_TEST_CONNECTION: Host=db-local;Port=5432;Username=${LOCAL_DB_USER:-flenta};Password=${LOCAL_DB_PASSWORD:-flenta_dev};Database=postgres
+    depends_on:
+      db-local:
+        condition: service_healthy
+    command: ["dotnet", "test", "Flenta.Backend.sln"]
+
   backend:
     build:
       context: ../Flenta_Backend
@@ -90,6 +110,7 @@ services:
       Supabase__PublishableKey: ${SUPABASE_PUBLISHABLE_KEY:-}
       Supabase__FrontendUrl: http://localhost:3000
 
+
   # Запуск: docker compose --profile local --profile app up -d --build
   frontend:
     build:
@@ -108,3 +129,4 @@ services:
 
 volumes:
   pgdata_local:
+  nuget_cache:
