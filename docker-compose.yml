@@ -6,7 +6,6 @@
 #   adminer   веб-інтерфейс до бази: http://localhost:8080
 #             System: PostgreSQL, Server: db-local, Username/Password/Database з .env (за замовчуванням flenta / flenta_dev / flenta)
 # Разом з веб-застосунком: docker compose --profile local --profile app up -d --build  (сайт: http://localhost:3000)
-
 # Скинути все до чистого стану: docker compose --profile local --profile app down -v
 
 services:
@@ -28,17 +27,19 @@ services:
       timeout: 5s
       retries: 10
 
+  # Великий набір вручну:
+  #   docker compose --profile local --profile app run --rm db-seed psql -h db-local -U flenta -d flenta -v ON_ERROR_STOP=1 -f /seed/banking_perf.sql
   db-seed:
     image: postgres:16
-    profiles: ["local"]
+    profiles: ["app"]
     depends_on:
-      db-local:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     environment:
       PGPASSWORD: ${LOCAL_DB_PASSWORD:-flenta_dev}
     volumes:
       - ./db/seed:/seed:ro
-    command: ["psql", "-h", "db-local", "-U", "${LOCAL_DB_USER:-flenta}", "-d", "${LOCAL_DB_NAME:-flenta}", "-v", "ON_ERROR_STOP=1", "-f", "/seed/001_seed_dev.sql"]
+    command: ["psql", "-h", "db-local", "-U", "${LOCAL_DB_USER:-flenta}", "-d", "${LOCAL_DB_NAME:-flenta}", "-v", "ON_ERROR_STOP=1", "-v", "owner1=${SEED_OWNER_1:-11111111-1111-1111-1111-111111111111}", "-v", "owner2=${SEED_OWNER_2:-22222222-2222-2222-2222-222222222222}", "-f", "/seed/banking_demo.sql"]
     restart: "no"
 
   adminer:
@@ -50,7 +51,6 @@ services:
       ADMINER_DEFAULT_SERVER: db-local
     ports:
       - "8080:8080"
-
 
   # Запускати з обома профілями: --profile local --profile app
   migrate:
@@ -66,9 +66,6 @@ services:
     restart: "no"
 
   # Тести backend однією командою:  docker compose --profile test run --rm tests
-
-  # (перевірка docker compose --profile test config --services )
-
 
   # Інший набір тестів:  docker compose --profile test run --rm tests dotnet test --filter "FullyQualifiedName~Iban"
   tests:
@@ -109,7 +106,6 @@ services:
       Supabase__Url: ${SUPABASE_URL:-}
       Supabase__PublishableKey: ${SUPABASE_PUBLISHABLE_KEY:-}
       Supabase__FrontendUrl: http://localhost:3000
-
 
   # Запуск: docker compose --profile local --profile app up -d --build
   frontend:
