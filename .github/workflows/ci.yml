@@ -14,28 +14,65 @@ permissions:
   contents: read
 
 jobs:
-  db-migrations:
-    name: Compose config and DB migrations
+  stack:
+    name: Full stack smoke test
     runs-on: ubuntu-latest
+    timeout-minutes: 25
+
     steps:
       - uses: actions/checkout@v4
+        with:
+          path: Flenta_Infra
+
+      - uses: actions/checkout@v4
+        with:
+          repository: marrttao/Flenta_Backend
+          ref: dev
+          path: Flenta_Backend
+
+      - uses: actions/checkout@v4
+        with:
+          repository: marrttao/Flenta_Desktop
+          ref: dev
+          path: Flenta_Desktop
 
       - name: Validate docker-compose.yml
-        run: docker compose --profile local config -q
+        working-directory: Flenta_Infra
+        run: docker compose --profile local --profile app --profile test config -q
 
-      - name: Start local Postgres (applies db/migrations)
-        run: docker compose --profile local up -d --wait db-local
+      - name: Build and start the stack (db, migrate, backend, frontend, adminer)
+        working-directory: Flenta_Infra
+        run: docker compose --profile local --profile app up -d --build
 
-      - name: Load seed data
-        run: docker compose --profile local run --rm db-seed
+      - name: Wait for backend health (backend starts only after migrations succeed)
+        run: |
+          for i in $(seq 1 40); do
+            if curl -fsS http://localhost:5080/health; then echo; exit 0; fi
+            sleep 5
+          done
+          echo "backend did not become healthy"
+          exit 1
 
-      - name: List tables
-        run: docker compose --profile local exec -T db-local psql -U flenta -d flenta -c "\dt"
+      - name: Frontend responds
+        run: curl -fsS http://localhost:3000 > /dev/null
+
+      - name: Load demo data
+        working-directory: Flenta_Infra
+        run: docker compose --profile local --profile app run --rm db-seed
+
+      - name: Demo data is in the banking schema
+        working-directory: Flenta_Infra
+        run: |
+          count=$(docker compose --profile local --profile app exec -T db-local psql -U flenta -d flenta -At -c 'select count(*) from banking.transactions')
+          echo "transactions: $count"
+          test "$count" -ge 13
 
       - name: Logs on failure
         if: failure()
-        run: docker compose --profile local logs db-local
+        working-directory: Flenta_Infra
+        run: docker compose --profile local --profile app logs --tail 80
 
       - name: Clean up
         if: always()
-        run: docker compose --profile local down -v
+        working-directory: Flenta_Infra
+        run: docker compose --profile local --profile app down -v
